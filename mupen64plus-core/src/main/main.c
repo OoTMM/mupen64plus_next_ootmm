@@ -1747,6 +1747,9 @@ m64p_error main_run(void)
     close_file_storage(&mpk);
 #endif
 
+    /* Reset IPC */
+    close_ipc(&g_dev.ipc);
+
     /* reset pif */
     close_pif();
     close_dd_disk(&dd_disk);

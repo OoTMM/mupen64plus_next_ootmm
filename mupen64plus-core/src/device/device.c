@@ -324,6 +324,8 @@ void init_device(struct device* dev,
         &dev->r4300,
         &dev->si);
 
+    init_ipc(&dev->ipc);
+
     init_cart(&dev->cart,
             af_rtc_clock, iaf_rtc_clock,
             (uint8_t*)mem_base_u32(base, MM_CART_ROM), rom_size,
@@ -354,6 +356,7 @@ void poweron_device(struct device* dev)
 
     poweron_pif(&dev->pif);
 
+    poweron_ipc(&dev->ipc);
     poweron_cart(&dev->cart);
 
     poweron_is_viewer(&dev->is);

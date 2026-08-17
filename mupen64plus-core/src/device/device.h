@@ -34,6 +34,7 @@
 #include "controllers/paks/transferpak.h"
 #include "dd/dd_controller.h"
 #include "gb/gb_cart.h"
+#include "ipc/ipc.h"
 #include "memory/memory.h"
 #include "pif/pif.h"
 #include "r4300/r4300_core.h"
@@ -109,6 +110,7 @@ struct device
     struct transferpak transferpaks[GAME_CONTROLLERS_COUNT];
     struct gb_cart gb_carts[GAME_CONTROLLERS_COUNT];
 
+    struct ipc ipc;
     struct cart cart;
 
     struct dd_controller dd;
