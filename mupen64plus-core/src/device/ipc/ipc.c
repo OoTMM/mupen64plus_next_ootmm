@@ -14,11 +14,11 @@
 #define IPC_STATUS_READ_READY   0x02
 #define IPC_STATUS_ERROR        0x04
 
-#define IPC_REG_KEY         0x00
-#define IPC_REG_STATUS      0x04
-#define IPC_REG_RAM_ADDR    0x08
-#define IPC_REG_WRITE_LEN   0x0c
-#define IPC_REG_READ_LEN    0x10
+#define IPC_REG_KEY         0
+#define IPC_REG_STATUS      1
+#define IPC_REG_RAM_ADDR    2
+#define IPC_REG_WRITE_LEN   3
+#define IPC_REG_READ_LEN    4
 
 #define IPC_REG(x) (((x) & 0xffff) >> 2)
 
@@ -51,7 +51,7 @@ void init_ipc(struct ipc* ipc)
 void poweron_ipc(struct ipc* ipc)
 {
     close_ipc(ipc);
-
+    
     ipc->regs[IPC_REG_KEY] = IPC_MAGIC_OUT;
     ipc->regs[IPC_REG_STATUS] = 0;
     ipc->regs[IPC_REG_RAM_ADDR] = 0;

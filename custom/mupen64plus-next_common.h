@@ -168,7 +168,7 @@ extern uint32_t OverscanBottom;
 
 // Keep it optional (f.e. Raspberry Pi Platforms override it in Makefile)
 #ifndef CORE_NAME
-#define CORE_NAME "mupen64plus"
+#define CORE_NAME "mupen64plus_ootmm"
 #endif
 
 // RetroArch Extensions

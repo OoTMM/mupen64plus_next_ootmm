@@ -380,6 +380,7 @@ void run_device(struct device* dev)
 {
     /* device execution is driven by the r4300 */
     run_r4300(&dev->r4300);
+    close_ipc(&dev->ipc);
 }
 
 void stop_device(struct device* dev)
