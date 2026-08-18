@@ -83,6 +83,7 @@ enum { GAME_CONTROLLERS_COUNT = 4 };
 #define MM_CART_ROM         UINT32_C(0x10000000) /* dom1 addr2 */
 #define MM_IS_VIEWER        UINT32_C(0x13ff0000) /* IS-Viewer */
 #define MM_PIF_MEM          UINT32_C(0x1fc00000)
+#define MM_IPC_MEM          UINT32_C(0x1fe00000)
 #define MM_CART_DOM3        UINT32_C(0x1fd00000) /* dom2 addr2 */
 
 /* Device structure is a container for the n64 submodules

@@ -46,6 +46,7 @@ SOURCES_C = \
 	$(CORE_DIR)/src/backends/clock_ctime_plus_delta.c \
 	$(CORE_DIR)/src/backends/dummy_video_capture.c \
 	$(CORE_DIR)/src/backends/file_storage.c \
+	$(CORE_DIR)/src/device/ipc/ipc.c \
 	$(CORE_DIR)/src/device/cart/cart.c \
 	$(CORE_DIR)/src/device/cart/af_rtc.c \
 	$(CORE_DIR)/src/device/cart/cart_rom.c \
