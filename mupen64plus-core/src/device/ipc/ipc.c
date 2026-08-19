@@ -44,6 +44,21 @@ static char sIpcSockPath[512];
 
 extern struct device g_dev;
 
+static void ipc_set_socket_async(SOCKET sock, int async)
+{
+#if defined(OS_WINDOWS)
+    u_long mode = async ? 1 : 0;
+    ioctlsocket(sock, FIONBIO, &mode);
+#else
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (async)
+        flags |= O_NONBLOCK;
+    else
+        flags &= ~O_NONBLOCK;
+    fcntl(sock, F_SETFL, flags);
+#endif
+}
+
 #if defined(OS_WINDOWS)
 static void init_ipc_path(void)
 {
@@ -122,9 +137,9 @@ void close_ipc(struct ipc* ipc)
 static void ipc_accept_check(struct ipc* ipc)
 {
     POLLFD pfd;
-    int sock;
+    SOCKET sock;
 
-    if (ipc->sock_listen < 0)
+    if (ipc->sock_listen == INVALID_SOCKET)
         return;
     
     pfd.fd = ipc->sock_listen;
@@ -139,12 +154,13 @@ static void ipc_accept_check(struct ipc* ipc)
             return;
         
         /* If we already have a client, just close the new one */
-        if (ipc->sock_client > -1)
+        if (ipc->sock_client != INVALID_SOCKET)
         {
             closesocket(sock);
         }
         else
         {
+            ipc_set_socket_async(sock, 0);
             ipc->sock_client = sock;
             ipc->regs[IPC_REG_STATUS] |= IPC_STATUS_CONNECTED;
         }
@@ -153,12 +169,13 @@ static void ipc_accept_check(struct ipc* ipc)
 
 static void ipc_update_avail(struct ipc* ipc)
 {
-    if (ipc->sock_client < 0)
+    if (ipc->sock_client == INVALID_SOCKET)
         return;
 
     POLLFD pfd;
     pfd.fd = ipc->sock_client;
-    pfd.events = POLLIN | POLLOUT | POLLERR;
+    pfd.events = POLLIN;
+
     if (poll(&pfd, 1, 0) > 0)
     {
         if (pfd.revents & POLLIN)
@@ -170,7 +187,7 @@ static void ipc_update_avail(struct ipc* ipc)
 
 static void open_ipc(struct ipc* ipc)
 {
-    int sock;
+    SOCKET sock;
 
     if (ipc->isEnabled)
         return;
@@ -207,13 +224,7 @@ static void open_ipc(struct ipc* ipc)
     }
 
     /* Enable non-blocking mode */
-#if defined(OS_WINDOWS)
-    u_long mode = 1;
-    ioctlsocket(sock, FIONBIO, &mode);
-#else
-    fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK);
-#endif
-
+    ipc_set_socket_async(sock, 1);
     ipc->sock_listen = sock;
 }
 
@@ -245,13 +256,13 @@ static void ipc_error(struct ipc* ipc)
 {
     printf("ipc_error: Client socket error, closing connection\n");
     closesocket(ipc->sock_client);
-    ipc->sock_client = -1;
+    ipc->sock_client = INVALID_SOCKET;
     ipc->regs[IPC_REG_STATUS] = 0;
     ipc->regs[IPC_REG_WRITE_LEN] = 0;
     ipc->regs[IPC_REG_READ_LEN] = 0;
 }
 
-static int ipc_writeall(int sock, const void* data, uint32_t len)
+static int ipc_writeall(SOCKET sock, const void* data, uint32_t len)
 {
     const char* ptr = (const char*)data;
     while (len > 0)
@@ -265,7 +276,7 @@ static int ipc_writeall(int sock, const void* data, uint32_t len)
     return 0;
 }
 
-static int ipc_writemsg(int sock, void* dram, uint32_t addr, uint32_t len)
+static int ipc_writemsg(SOCKET sock, void* dram, uint32_t addr, uint32_t len)
 {
     char buf[256];
     uint32_t l;
@@ -290,7 +301,7 @@ static int ipc_writemsg(int sock, void* dram, uint32_t addr, uint32_t len)
     return 0;
 }
 
-static int ipc_readuntil(int sock, void* data, uint32_t len)
+static int ipc_readuntil(SOCKET sock, void* data, uint32_t len)
 {
     char* ptr = (char*)data;
     while (len > 0)
@@ -306,7 +317,7 @@ static int ipc_readuntil(int sock, void* data, uint32_t len)
     return 0;
 }
 
-static int ipc_readmsg(int sock, void* dram, uint32_t addr, uint32_t* len)
+static int ipc_readmsg(SOCKET sock, void* dram, uint32_t addr, uint32_t* len)
 {
     char buf[256];
     uint32_t msglen;
@@ -347,7 +358,7 @@ static void ipc_dowrite(struct ipc* ipc)
     if (!len)
         return;
         
-    if (ipc->sock_client < 0)
+    if (ipc->sock_client == INVALID_SOCKET)
     {
         ipc->regs[IPC_REG_WRITE_LEN] = 0;
         return;
@@ -374,7 +385,7 @@ static void ipc_doread(struct ipc* ipc)
     if (!len)
         return;
 
-    if (ipc->sock_client < 0)
+    if (ipc->sock_client == INVALID_SOCKET)
     {
         ipc->regs[IPC_REG_READ_LEN] = 0;
         return;
@@ -382,7 +393,11 @@ static void ipc_doread(struct ipc* ipc)
 
     /* Make sure the socket is ready to read */
     pfd.fd = ipc->sock_client;
+#if defined(OS_WINDOWS)
+    pfd.events = POLLIN;
+#else
     pfd.events = POLLIN | POLLERR;
+#endif
     ret = poll(&pfd, 1, 0);
     if (ret < 0 || !(pfd.revents & POLLIN))
     {
@@ -390,7 +405,7 @@ static void ipc_doread(struct ipc* ipc)
         return;
     }
 
-    if (pfd.revents & POLLERR)
+    if (pfd.revents & (POLLERR | POLLHUP))
     {
         printf("ipc_doread: Socket error, aborting read\n");
         ipc_error(ipc);

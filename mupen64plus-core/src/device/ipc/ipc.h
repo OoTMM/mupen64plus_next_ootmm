@@ -5,6 +5,8 @@
 
 #if !defined(OS_WINDOWS)
 # define SOCKET int
+#else
+# include <winsock2.h>
 #endif
 
 /* This implements an IPC interface (pseudo serial bus), similar to the USB
