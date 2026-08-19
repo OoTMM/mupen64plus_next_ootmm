@@ -1,12 +1,26 @@
-#include <unistd.h>
+#if defined(OS_WINDOWS)
+# include <winsock2.h>
+# include <afunix.h>
+# define _WIN32_LEAN_AND_MEAN
+# include <windows.h>
+# define PATH_SEP            '\\'
+# define POLLFD              WSAPOLLFD
+# define poll                WSAPoll
+#else
+# include <unistd.h>
+# include <sys/stat.h>
+# include <sys/socket.h>
+# include <sys/un.h>
+# include <fcntl.h>
+# include <poll.h>
+# define INVALID_SOCKET     -1
+# define PATH_SEP            '/'
+# define closesocket        close
+# define POLLFD             struct pollfd
+#endif
+
 #include <stdio.h>
-#include <pthread.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <poll.h>
 #include "ipc.h"
 #include "device/device.h"
 #include "osal/preproc.h"
@@ -30,6 +44,23 @@ static char sIpcSockPath[512];
 
 extern struct device g_dev;
 
+#if defined(OS_WINDOWS)
+static void init_ipc_path(void)
+{
+    char buffer[512];
+    const char* rt_dir;
+
+    /* Get the path to the IPC dir & create it */
+    rt_dir = getenv("LOCALAPPDATA");
+    if (rt_dir == NULL)
+        return;
+    snprintf(buffer, sizeof(buffer), "%s\\Temp\\n64-ipc", rt_dir);
+    CreateDirectoryA(buffer, NULL);
+
+    /* Get the full socket path */
+    snprintf(sIpcSockPath, sizeof(sIpcSockPath), "%s\\%d.sock", buffer, GetCurrentProcessId());
+}
+#else
 static void init_ipc_path(void)
 {
     char buffer[512];
@@ -46,12 +77,13 @@ static void init_ipc_path(void)
     /* Get the full socket path */
     snprintf(sIpcSockPath, sizeof(sIpcSockPath), "%s/%d.sock", buffer, getpid());
 }
+#endif
 
 void init_ipc(struct ipc* ipc)
 {
     init_ipc_path();
-    ipc->sock_listen = -1;
-    ipc->sock_client = -1;
+    ipc->sock_listen = INVALID_SOCKET;
+    ipc->sock_client = INVALID_SOCKET;
 }
 
 void poweron_ipc(struct ipc* ipc)
@@ -64,16 +96,16 @@ void close_ipc(struct ipc* ipc)
     ipc->isEnabled = 0;
 
     /* Close both sockets */
-    if (ipc->sock_listen > -1)
+    if (ipc->sock_listen != INVALID_SOCKET)
     {
-        close(ipc->sock_listen);
-        ipc->sock_listen = -1;
+        closesocket(ipc->sock_listen);
+        ipc->sock_listen = INVALID_SOCKET;
     }
 
-    if (ipc->sock_client > -1)
+    if (ipc->sock_client != INVALID_SOCKET)
     {
-        close(ipc->sock_client);
-        ipc->sock_client = -1;
+        closesocket(ipc->sock_client);
+        ipc->sock_client = INVALID_SOCKET;
     }
 
     /* Ensure the socket file is deleted */
@@ -89,7 +121,7 @@ void close_ipc(struct ipc* ipc)
 
 static void ipc_accept_check(struct ipc* ipc)
 {
-    struct pollfd pfd;
+    POLLFD pfd;
     int sock;
 
     if (ipc->sock_listen < 0)
@@ -109,7 +141,7 @@ static void ipc_accept_check(struct ipc* ipc)
         /* If we already have a client, just close the new one */
         if (ipc->sock_client > -1)
         {
-            close(sock);
+            closesocket(sock);
         }
         else
         {
@@ -124,7 +156,7 @@ static void ipc_update_avail(struct ipc* ipc)
     if (ipc->sock_client < 0)
         return;
 
-    struct pollfd pfd;
+    POLLFD pfd;
     pfd.fd = ipc->sock_client;
     pfd.events = POLLIN | POLLOUT | POLLERR;
     if (poll(&pfd, 1, 0) > 0)
@@ -161,7 +193,7 @@ static void open_ipc(struct ipc* ipc)
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
         printf("open_ipc: Failed to bind socket\n");
-        close(sock);
+        closesocket(sock);
         close_ipc(ipc);
         return;
     }
@@ -169,13 +201,18 @@ static void open_ipc(struct ipc* ipc)
     if (listen(sock, 1) < 0)
     {
         printf("open_ipc: Failed to listen on socket\n");
-        close(sock);
+        closesocket(sock);
         close_ipc(ipc);
         return;
     }
 
     /* Enable non-blocking mode */
+#if defined(OS_WINDOWS)
+    u_long mode = 1;
+    ioctlsocket(sock, FIONBIO, &mode);
+#else
     fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK);
+#endif
 
     ipc->sock_listen = sock;
 }
@@ -207,7 +244,7 @@ void read_ipc_regs(void* opaque, uint32_t address, uint32_t* value)
 static void ipc_error(struct ipc* ipc)
 {
     printf("ipc_error: Client socket error, closing connection\n");
-    close(ipc->sock_client);
+    closesocket(ipc->sock_client);
     ipc->sock_client = -1;
     ipc->regs[IPC_REG_STATUS] = 0;
     ipc->regs[IPC_REG_WRITE_LEN] = 0;
@@ -327,7 +364,7 @@ static void ipc_dowrite(struct ipc* ipc)
 
 static void ipc_doread(struct ipc* ipc)
 {
-    struct pollfd pfd;
+    POLLFD pfd;
     uint32_t len;
     struct r4300_core* r4300 = &g_dev.r4300;
     char* dram;

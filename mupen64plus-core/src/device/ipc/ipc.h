@@ -3,12 +3,16 @@
 
 #include <stdint.h>
 
+#if !defined(OS_WINDOWS)
+# define SOCKET int
+#endif
+
 /* This implements an IPC interface (pseudo serial bus), similar to the USB
  * interfaces present on some flashcarts. */
 struct ipc {
     char* sock_path;
-    int sock_listen;
-    int sock_client;
+    SOCKET sock_listen;
+    SOCKET sock_client;
     unsigned char isEnabled:1;
     uint32_t regs[5];
 };
