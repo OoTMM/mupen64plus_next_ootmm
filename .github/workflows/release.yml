@@ -1,0 +1,27 @@
+name: Release Workflow
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'r*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Build binaries
+        run: ./release.sh
+
+#      - name: Create release
+#        uses: softprops/action-gh-release@v3
+#        with:
+#          working_directory: dist
+#          files: '*'
