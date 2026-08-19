@@ -2,7 +2,7 @@
 
 rm -rf dist
 
-make -j
+make -j || exit 1
 mkdir -p dist/mupen64plus_ootmm-linux-amd64
 cp mupen64plus_ootmm_libretro.so ./dist/mupen64plus_ootmm-linux-amd64
 cp mupen64plus_ootmm_libretro.info ./dist/mupen64plus_ootmm-linux-amd64
