@@ -1,6 +1,6 @@
 #!/bin/sh
 
-rm -rf dist
+rm -rf build
 
 BUILD_ENV="HAVE_PARALLEL_RDP=1 HAVE_PARALLEL_RSP=1 HAVE_THR_AL=1 LLE=1"
 
@@ -20,14 +20,17 @@ else
     exit 1
 fi
 
+make clean
 make $BUILD_ENV -j || exit 1
 
-mkdir -p dist/mupen64plus_ootmm-$arch_name
-cp mupen64plus_ootmm_libretro.$ext ./dist/mupen64plus_ootmm-$arch_name/$cores_dir
-cp mupen64plus_ootmm_libretro.info ./dist/mupen64plus_ootmm-$arch_name/$info_dir
+mkdir -p build/mupen64plus_ootmm-$arch_name
+mkdir -p dist
+cp mupen64plus_ootmm_libretro.$ext ./build/mupen64plus_ootmm-$arch_name/$cores_dir
+cp mupen64plus_ootmm_libretro.info ./build/mupen64plus_ootmm-$arch_name/$info_dir
 
-cd dist
+cd build
 zip -r mupen64plus_ootmm-$arch_name.zip mupen64plus_ootmm-$arch_name
 rm -rf mupen64plus_ootmm-$arch_name
+mv mupen64plus_ootmm-$arch_name.zip ../dist
 cd ..
 
